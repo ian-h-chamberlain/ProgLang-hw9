@@ -73,8 +73,9 @@ class Task implements Runnable {
             Account lhs = parseAccount(words[0]);
             if (!words[1].equals("="))
                 throw new InvalidTransactionError();
-            //int rhs = parseAccountOrNum(words[2]);
+            // int total to keep track of our update value
             int total = 0;
+            // arraylist of accounts that create our total
             ArrayList<Account> rhs = new ArrayList<>();
             rhs.add(parseAccountOrNum(words[2]));
             total = rhs.get(rhs.size()-1).peek();
@@ -91,13 +92,20 @@ class Task implements Runnable {
                     throw new InvalidTransactionError();
                 }
             }
+            // array of peek valuse
+            int[] peekCache = new int[rhs.size()];
             for (int r = 0; r < rhs.size(); r++){
+            	peekCache[r] = rhs.get(r).peek();
             	try{
             		rhs.get(r).open(false);
             	} catch (TransactionAbortException e){
             		System.err.println("Could not open account for read! " + r + " " + transaction);
             	}
-            	
+            	try{
+            		rhs.get(r).verify(peekCache[r]);
+            	} catch (TransactionAbortException t) {
+            		System.err.println("Verifing value failed! " + r + " " + transaction);
+            	}
             }
             try {
                 lhs.open(true);
