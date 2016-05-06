@@ -44,7 +44,11 @@ public class MultithreadedServerTests extends TestCase {
 		}			 
 		
 		MultithreadedServer.runServer("hw09/data/increment", accounts);
+<<<<<<< HEAD
 	
+=======
+		
+>>>>>>> branch 'master' of https://github.com/ian-h-chamberlain/ProgLang-hw9.git
 		// assert correct account values
 		for (int i = A; i <= Z; i++) {
 			Character c = new Character((char) (i+'A'));
@@ -52,6 +56,30 @@ public class MultithreadedServerTests extends TestCase {
 		}		
 
 	 }
+     
+     @Test
+     public void testRotate() throws IOException {
+    	 
+    	 // initialize accounts
+    	 accounts = new Account[numLetters];
+    	 for (int i = A; i <= Z; i++) {
+    		 accounts[i] = new Account(Z-i);
+    	 }
+    	 
+    	 MultithreadedServer.runServer("hw09/data/rotate", accounts);
+    	 
+    	 // assert correct account values
+    	 for (int i = A; i <= Z-2; i++) {
+    		 Character c = new Character((char) (i+'A'));
+    		 assertEquals("Account "+c+" differs",(Z-i-1)+(Z-i-2),accounts[i].getValue());
+    	 }
+    	 Character c = new Character((char) ('Y'));
+		 assertEquals("Account "+c+" differs",47,accounts[Z-1].getValue());
+		 
+		 Character d = new Character((char) ('Z'));
+		 assertEquals("Account "+d+" differs",92,accounts[Z].getValue());
+    		 
+     }
 	 	  	 
 	
 }
