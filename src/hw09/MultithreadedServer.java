@@ -3,12 +3,15 @@ package hw09;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 // TO DO: Task is currently an ordinary class.
 // You will need to modify it to make it a task,
 // so it can be given to an Executor thread pool.
 //
-class Task {
+class Task implements Runnable {
     private static final int A = constants.A;
     private static final int Z = constants.Z;
     private static final int numLetters = constants.numLetters;
@@ -91,7 +94,7 @@ class Task {
 }
 
 public class MultithreadedServer {
-
+	
 	// requires: accounts != null && accounts[i] != null (i.e., accounts are properly initialized)
 	// modifies: accounts
 	// effects: accounts change according to transactions in inputFile
@@ -102,6 +105,7 @@ public class MultithreadedServer {
         String line;
         BufferedReader input =
             new BufferedReader(new FileReader(inputFile));
+        ExecutorService e = Executors.newCachedThreadPool();
 
         // TO DO: you will need to create an Executor and then modify the
         // following loop to feed tasks to the executor instead of running them
@@ -109,7 +113,15 @@ public class MultithreadedServer {
 
         while ((line = input.readLine()) != null) {
             Task t = new Task(accounts, line);
-            t.run();
+            e.execute(t);
+        }
+        
+        e.shutdown();
+        
+        try {
+			e.awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+        	System.err.println("Thread interrupted with timeout!");
         }
         
         input.close();
