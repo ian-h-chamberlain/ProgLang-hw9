@@ -3,6 +3,7 @@ package hw09;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -51,12 +52,12 @@ class Task implements Runnable {
         return a;
     }
 
-    private int parseAccountOrNum(String name) {
-        int rtn;
+    private Account parseAccountOrNum(String name) {
+        Account rtn;
         if (name.charAt(0) >= '0' && name.charAt(0) <= '9') {
-            rtn = new Integer(name).intValue();
+            rtn = new Account(new Integer(name).intValue());
         } else {
-            rtn = parseAccount(name).peek();
+            rtn = parseAccount(name);
         }
         return rtn;
     }
@@ -72,22 +73,61 @@ class Task implements Runnable {
             Account lhs = parseAccount(words[0]);
             if (!words[1].equals("="))
                 throw new InvalidTransactionError();
-            int rhs = parseAccountOrNum(words[2]);
+            //int rhs = parseAccountOrNum(words[2]);
+            int total = 0;
+            ArrayList<Account> rhs = new ArrayList<>();
+            rhs.add(parseAccountOrNum(words[2]));
+            total = rhs.get(rhs.size()-1).peek();
             for (int j = 3; j < words.length; j+=2) {
-                if (words[j].equals("+"))
-                    rhs += parseAccountOrNum(words[j+1]);
-                else if (words[j].equals("-"))
-                    rhs -= parseAccountOrNum(words[j+1]);
-                else
+                if (words[j].equals("+")){
+                    rhs.add(parseAccountOrNum(words[j+1]));
+                	total += rhs.get(rhs.size()-1).peek();
+                }
+                else if (words[j].equals("-")){
+                    rhs.add(parseAccountOrNum(words[j+1]));
+                	total -= rhs.get(rhs.size()-1).peek();
+                }
+                else{
                     throw new InvalidTransactionError();
+                }
+            }
+            for (int r = 0; r < rhs.size(); r++){
+            	try{
+            		rhs.get(r).open(false);
+            	} catch (TransactionAbortException e){
+            		System.err.println("Could not open account for read! " + r + " " + transaction);
+            	}
+            	
             }
             try {
                 lhs.open(true);
             } catch (TransactionAbortException e) {
-                // won't happen in sequential version
+                System.err.println("Could not open lhs account! " + transaction);
+                for (int r = 0; r < rhs.size(); r++){
+                	try {
+                		rhs.get(r).close();
+                	} catch (TransactionUsageError t) {
+                		System.err.println("Could not close account! " + r + " " + transaction);
+                	}
+                }
+                run();
+                return;
             }
-            lhs.update(rhs);
-            lhs.close();
+
+            lhs.update(total);
+            for (int r = 0; r < rhs.size(); r++){
+            	try {
+            		rhs.get(r).close();
+            	} catch (TransactionUsageError t) {
+            		System.err.println("Could not close account! " + r + " " + transaction);
+            	}
+            }
+            
+            try {
+        		lhs.close();
+        	} catch (TransactionUsageError t) {
+        		// this was already closed in rhs loop
+        	}
         }
         System.out.println("commit: " + transaction);
     }
