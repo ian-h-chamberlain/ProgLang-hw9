@@ -44,11 +44,7 @@ public class MultithreadedServerTests extends TestCase {
 		}			 
 		
 		MultithreadedServer.runServer("hw09/data/increment", accounts);
-<<<<<<< HEAD
 	
-=======
-		
->>>>>>> branch 'master' of https://github.com/ian-h-chamberlain/ProgLang-hw9.git
 		// assert correct account values
 		for (int i = A; i <= Z; i++) {
 			Character c = new Character((char) (i+'A'));
