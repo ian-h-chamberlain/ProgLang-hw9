@@ -128,7 +128,6 @@ class Task implements Runnable {
 				for (int r = A; r <= Z; r++) {
 					if (cachedAccounts[r].getWritten()) {
 						accounts[r].update(cachedAccounts[r].getNewVal());
-						System.err.println("Account " + r + " written with " + cachedAccounts[r].getNewVal());
 					}
 				}
 

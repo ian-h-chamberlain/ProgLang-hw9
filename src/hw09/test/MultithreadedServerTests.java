@@ -53,29 +53,73 @@ public class MultithreadedServerTests extends TestCase {
 
 	 }
      
+     // This test case only checks to avoid deadlock and has non-deterministic results
      @Test
      public void testRotate() throws IOException {
     	 
     	 // initialize accounts
     	 accounts = new Account[numLetters];
     	 for (int i = A; i <= Z; i++) {
-    		 accounts[i] = new Account(Z-i);
+    		 accounts[i] = new Account(1);
     	 }
     	 
     	 MultithreadedServer.runServer("hw09/data/rotate", accounts);
     	 
     	 // assert correct account values
-    	 for (int i = A; i <= Z-2; i++) {
+    	 for (int i = A; i <= Z; i++) {
     		 Character c = new Character((char) (i+'A'));
-    		 assertEquals("Account "+c+" differs",(Z-i-1)+(Z-i-2),accounts[i].getValue());
+    		 assertTrue("Account "+c+" has incorrect value " + accounts[i].getValue(), accounts[i].getValue() > 0);
     	 }
-    	 Character c = new Character((char) ('Y'));
-		 assertEquals("Account "+c+" differs",47,accounts[Z-1].getValue());
-		 
-		 Character d = new Character((char) ('Z'));
-		 assertEquals("Account "+d+" differs",92,accounts[Z].getValue());
+    	 
+    	 // dump account values to visually verify nondeterministic output
+    	 dumpAccounts();
     		 
      }
-	 	  	 
+     
+     // test indirection
+     @Test
+     public void testIndirection() throws IOException {
+    	 /// initialize accounts
+    	 accounts = new Account[numLetters];
+    	 for (int i = A; i <= Z; i++) {
+    		 accounts[i] = new Account(1);
+    	 }
+    	 
+    	 MultithreadedServer.runServer("hw09/data/indirection", accounts);
+    	 
+    	 assertTrue("Account A has incorrect value " + accounts[A].getValue(),
+    			 accounts[A].getValue() == 0 ||
+    			 accounts[A].getValue() == 4 ||
+    			 accounts[A].getValue() == 5);
+
+    	 assertTrue("Account E has incorrect value " + accounts[A + 4].getValue(),
+    			 accounts[A+4].getValue() == 12 ||
+    			 accounts[A+4].getValue() == 1 ||
+    			 accounts[A+4].getValue() == 5);
+    	 
+    	 assertTrue("Account F has incorrect value " + accounts[A + 5].getValue(),
+    			 accounts[A+5].getValue() == 1 ||
+    			 accounts[A+5].getValue() == 4);
+     }
+     
+     // test decrementing
+     @Test
+     public void testDecrement() throws IOException {
+	
+		// initialize accounts 
+		accounts = new Account[numLetters];
+		for (int i = A; i <= Z; i++) {
+			accounts[i] = new Account(Z-i);
+		}			 
+		
+		MultithreadedServer.runServer("hw09/data/decrement", accounts);
+	
+		// assert correct account values
+		for (int i = A; i <= Z; i++) {
+			Character c = new Character((char) (i+'A'));
+			assertEquals("Account "+c+" differs",Z-i-1,accounts[i].getValue());
+		}		
+
+     }
 	
 }
