@@ -18,6 +18,7 @@ class Task implements Runnable {
     private static final int numLetters = constants.numLetters;
 
     private Account[] accounts;
+    private CachedAccount[] cachedAccounts;
     private String transaction;
 
     // TO DO: The sequential version of Task peeks at accounts
@@ -31,6 +32,10 @@ class Task implements Runnable {
 
     public Task(Account[] allAccounts, String trans) {
         accounts = allAccounts;
+        cachedAccounts = new CachedAccount[accounts.length];
+        for (int i = 0; i < accounts.length; i++) {
+        	cachedAccounts[i] = new CachedAccount();
+        }
         transaction = trans;
     }
     
@@ -38,26 +43,28 @@ class Task implements Runnable {
     // You probably want to change it to return a reference to an
     // account *cache* instead.
     //
-    private Account parseAccount(String name) {
+    private int parseAccount(String name) {
         int accountNum = (int) (name.charAt(0)) - (int) 'A';
         if (accountNum < A || accountNum > Z)
             throw new InvalidTransactionError();
-        Account a = accounts[accountNum];
+        CachedAccount a = cachedAccounts[accountNum];
         for (int i = 1; i < name.length(); i++) {
             if (name.charAt(i) != '*')
                 throw new InvalidTransactionError();
             accountNum = (accounts[accountNum].peek() % numLetters);
-            a = accounts[accountNum];
+            a = cachedAccounts[accountNum];
         }
-        return a;
+		a.updateOld(accounts[accountNum].peek());
+        return accountNum;
     }
 
-    private Account parseAccountOrNum(String name) {
-        Account rtn;
+    private CachedAccount parseAccountOrNum(String name) {
+        CachedAccount rtn;
         if (name.charAt(0) >= '0' && name.charAt(0) <= '9') {
-            rtn = new Account(new Integer(name).intValue());
+            rtn = new CachedAccount();
+            rtn.updateOld(new Integer(name).intValue());
         } else {
-            rtn = parseAccount(name);
+            rtn = cachedAccounts[parseAccount(name)];
         }
         return rtn;
     }
@@ -66,77 +73,94 @@ class Task implements Runnable {
         // tokenize transaction
         String[] commands = transaction.split(";");
 
-        for (int i = 0; i < commands.length; i++) {
-            String[] words = commands[i].trim().split("\\s");
-            if (words.length < 3)
-                throw new InvalidTransactionError();
-            Account lhs = parseAccount(words[0]);
-            if (!words[1].equals("="))
-                throw new InvalidTransactionError();
-            // int total to keep track of our update value
-            int total = 0;
-            // arraylist of accounts that create our total
-            ArrayList<Account> rhs = new ArrayList<>();
-            rhs.add(parseAccountOrNum(words[2]));
-            total = rhs.get(rhs.size()-1).peek();
-            for (int j = 3; j < words.length; j+=2) {
-                if (words[j].equals("+")){
-                    rhs.add(parseAccountOrNum(words[j+1]));
-                	total += rhs.get(rhs.size()-1).peek();
-                }
-                else if (words[j].equals("-")){
-                    rhs.add(parseAccountOrNum(words[j+1]));
-                	total -= rhs.get(rhs.size()-1).peek();
-                }
-                else{
-                    throw new InvalidTransactionError();
-                }
-            }
-            // array of peek valuse
-            int[] peekCache = new int[rhs.size()];
-            for (int r = 0; r < rhs.size(); r++){
-            	peekCache[r] = rhs.get(r).peek();
-            	try{
-            		rhs.get(r).open(false);
-            	} catch (TransactionAbortException e){
-            		System.err.println("Could not open account for read! " + r + " " + transaction);
-            	}
-            	try{
-            		rhs.get(r).verify(peekCache[r]);
-            	} catch (TransactionAbortException t) {
-            		System.err.println("Verifing value failed! " + r + " " + transaction);
-            	}
-            }
-            try {
-                lhs.open(true);
-            } catch (TransactionAbortException e) {
-                System.err.println("Could not open lhs account! " + transaction);
-                for (int r = 0; r < rhs.size(); r++){
-                	try {
-                		rhs.get(r).close();
-                	} catch (TransactionUsageError t) {
-                		System.err.println("Could not close account! " + r + " " + transaction);
-                	}
-                }
-                run();
-                return;
-            }
+        while (true) {
+			for (int i = 0; i < commands.length; i++) {
+				String[] words = commands[i].trim().split("\\s");
+				if (words.length < 3)
+					throw new InvalidTransactionError();
+				int lhs = parseAccount(words[0]);
+				cachedAccounts[lhs].markWritten();
+				if (!words[1].equals("="))
+					throw new InvalidTransactionError();
+				// int total to keep track of our update value
+				int total = 0;
+				// arraylist of accounts that create our total
+				CachedAccount rhs = parseAccountOrNum(words[2]);
+				rhs.markRead();
+				total = rhs.getOldVal();
+				for (int j = 3; j < words.length; j+=2) {
+					if (words[j].equals("+")){
+						rhs = parseAccountOrNum(words[j+1]);
+						rhs.markRead();
+						total += rhs.getOldVal();
+					}
+					else if (words[j].equals("-")){
+						rhs = parseAccountOrNum(words[j+1]);
+						rhs.markRead();
+						total -= rhs.getOldVal();
+					}
+					else{
+						throw new InvalidTransactionError();
+					}
+				}
 
-            lhs.update(total);
-            for (int r = 0; r < rhs.size(); r++){
-            	try {
-            		rhs.get(r).close();
-            	} catch (TransactionUsageError t) {
-            		System.err.println("Could not close account! " + r + " " + transaction);
-            	}
-            }
-            
-            try {
-        		lhs.close();
-        	} catch (TransactionUsageError t) {
-        		// this was already closed in rhs loop
-        	}
-        }
+				cachedAccounts[lhs].updateNew(total);
+			}
+				
+			try{
+				// open all accounts
+				for (int r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getRead()) {
+						accounts[r].open(false);
+					}
+					if (cachedAccounts[r].getWritten()) {
+						accounts[r].open(true);
+					}
+				}
+			
+				// verify all accounts
+				for (int r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getRead())
+						accounts[r].verify(cachedAccounts[r].getOldVal());
+				}
+				
+				// write all values
+				for (int r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getWritten()) {
+						accounts[r].update(cachedAccounts[r].getNewVal());
+						System.err.println("Account " + r + " written with " + cachedAccounts[r].getNewVal());
+					}
+				}
+
+				// close all accounts
+				for (int r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getRead() || cachedAccounts[r].getWritten()) {
+						try {
+							accounts[r].close();
+						}
+						catch (TransactionUsageError ex) {
+							// already closed, no need to close again
+						}
+					}
+				}
+				
+				break;
+				
+			} catch (TransactionAbortException e){
+				for (int r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getRead() || cachedAccounts[r].getWritten()) {
+						try {
+							accounts[r].close();
+						}
+						catch (TransactionUsageError ex) {
+							// already closed, no need to close again
+						}
+					}
+				}
+				continue;
+			}
+		}
+
         System.out.println("commit: " + transaction);
     }
 }
