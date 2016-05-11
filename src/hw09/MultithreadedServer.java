@@ -20,6 +20,7 @@ class Task implements Runnable {
     private Account[] accounts;
     private CachedAccount[] cachedAccounts;
     private String transaction;
+    private int id;
 
     // TO DO: The sequential version of Task peeks at accounts
     // whenever it needs to get a value, and opens, updates, and closes
@@ -30,13 +31,14 @@ class Task implements Runnable {
     // writing, or both, (2) verify all previously peeked-at values,
     // (3) perform all updates, and (4) close all opened accounts.
 
-    public Task(Account[] allAccounts, String trans) {
+    public Task(Account[] allAccounts, String trans, int id) {
         accounts = allAccounts;
         cachedAccounts = new CachedAccount[accounts.length];
         for (int i = 0; i < accounts.length; i++) {
         	cachedAccounts[i] = new CachedAccount();
         }
         transaction = trans;
+        this.id = id;
     }
     
     // TO DO: parseAccount currently returns a reference to an account.
@@ -67,6 +69,19 @@ class Task implements Runnable {
             rtn = cachedAccounts[parseAccount(name)];
         }
         return rtn;
+    }
+    
+    private void closeAll() {
+    	for (int r = A; r <= Z; r++) {
+			if (cachedAccounts[r].getRead() || cachedAccounts[r].getWritten()) {
+				try {
+					accounts[r].close();
+				}
+				catch (TransactionUsageError ex) {
+					// already closed, no need to close again
+				}
+			}
+		}
     }
 
     public void run() {
@@ -107,57 +122,54 @@ class Task implements Runnable {
 				cachedAccounts[lhs].updateNew(total);
 			}
 				
+			int r = -1;
 			try{
 				// open all accounts
-				for (int r = A; r <= Z; r++) {
-					if (cachedAccounts[r].getRead()) {
+				for (r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getRead() && cachedAccounts[r].getWritten()) {
 						accounts[r].open(false);
-					}
-					if (cachedAccounts[r].getWritten()) {
 						accounts[r].open(true);
 					}
-				}
-			
-				// verify all accounts
-				for (int r = A; r <= Z; r++) {
-					if (cachedAccounts[r].getRead())
-						accounts[r].verify(cachedAccounts[r].getOldVal());
-				}
-				
-				// write all values
-				for (int r = A; r <= Z; r++) {
-					if (cachedAccounts[r].getWritten()) {
-						accounts[r].update(cachedAccounts[r].getNewVal());
+					else if (cachedAccounts[r].getWritten()) {
+						accounts[r].open(true);
 					}
-				}
-
-				// close all accounts
-				for (int r = A; r <= Z; r++) {
-					if (cachedAccounts[r].getRead() || cachedAccounts[r].getWritten()) {
-						try {
-							accounts[r].close();
-						}
-						catch (TransactionUsageError ex) {
-							// already closed, no need to close again
-						}
+					else if (cachedAccounts[r].getRead()) {
+						accounts[r].open(false);
 					}
+					
 				}
-				
-				break;
-				
-			} catch (TransactionAbortException e){
-				for (int r = A; r <= Z; r++) {
-					if (cachedAccounts[r].getRead() || cachedAccounts[r].getWritten()) {
-						try {
-							accounts[r].close();
-						}
-						catch (TransactionUsageError ex) {
-							// already closed, no need to close again
-						}
-					}
+			} catch (TransactionAbortException e) {
+				closeAll();
+				try {
+					// desynchronize competing threads
+					Thread.sleep(id * 7);
+				} catch (InterruptedException ex) {
+					// no need to do anything here
 				}
 				continue;
 			}
+
+			try {
+				// verify all accounts
+				for (r = A; r <= Z; r++) {
+					if (cachedAccounts[r].getRead())
+						accounts[r].verify(cachedAccounts[r].getOldVal());
+				}
+			} catch (TransactionAbortException e){
+				closeAll();
+				continue;
+			}
+
+			// write all values
+			for (r = A; r <= Z; r++) {
+				if (cachedAccounts[r].getWritten()) {
+					accounts[r].update(cachedAccounts[r].getNewVal());
+				}
+			}
+
+			closeAll();
+			
+			break;
 		}
 
         System.out.println("commit: " + transaction);
@@ -182,15 +194,20 @@ public class MultithreadedServer {
         // following loop to feed tasks to the executor instead of running them
         // directly.  
 
+        int i = 0;
         while ((line = input.readLine()) != null) {
-            Task t = new Task(accounts, line);
+            Task t = new Task(accounts, line, i);
+            i++;
             e.execute(t);
         }
         
         e.shutdown();
         
         try {
-			e.awaitTermination(10, TimeUnit.SECONDS);
+			boolean success = e.awaitTermination(60, TimeUnit.SECONDS);
+			if (!success) {
+				System.err.println("timeout reached");
+			}
         } catch (InterruptedException ex) {
         	System.err.println("Thread interrupted with timeout!");
         }

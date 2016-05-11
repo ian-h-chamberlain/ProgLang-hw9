@@ -121,5 +121,27 @@ public class MultithreadedServerTests extends TestCase {
 		}		
 
      }
+     
+     // test passing around a unit over a set of accounts
+     @Test
+     public void testRotateInc() throws IOException {
+
+		accounts = new Account[numLetters];
+
+		for (int i = A; i <= Z; i++) {
+			accounts[i] = new Account(100);
+		}			 
+		
+		MultithreadedServer.runServer("hw09/data/rotateInc", accounts);
+
+		dumpAccounts();
+		
+		for (int i = A; i <= Z; i++) {
+			Character c = new Character((char) (i+'A'));
+			assertEquals("Account "+c+" differs",100,accounts[i].getValue());
+		}
+		
+    	 
+     }
 	
 }
