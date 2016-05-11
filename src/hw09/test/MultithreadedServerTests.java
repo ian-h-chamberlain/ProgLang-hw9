@@ -14,6 +14,7 @@ import junit.framework.TestCase;
 import org.junit.Test;
 
 public class MultithreadedServerTests extends TestCase {
+
     private static final int A = constants.A;
     private static final int Z = constants.Z;
     private static final int numLetters = constants.numLetters;
@@ -34,11 +35,14 @@ public class MultithreadedServerTests extends TestCase {
 	 }    
      
         
+     // Initially provided test case for incrementing each account
      @Test
 	 public void testIncrement() throws IOException {
 	
-		// initialize accounts 
-		accounts = new Account[numLetters];
+    	// The array itself is never modified by each thread, even if items in it are
+		/* shared immutable state */ accounts = new Account[numLetters];
+
+		// initialize all accounts to have value 1
 		for (int i = A; i <= Z; i++) {
 			accounts[i] = new Account(Z-i);
 		}			 
@@ -57,15 +61,17 @@ public class MultithreadedServerTests extends TestCase {
      @Test
      public void testRotate() throws IOException {
     	 
-    	 // initialize accounts
-    	 accounts = new Account[numLetters];
+    	 // The array itself is never modified by each thread, even if items in it are
+    	 /* shared immutable state */ accounts = new Account[numLetters];
+    	 
+    	 // initialize all accounts to have value 1
     	 for (int i = A; i <= Z; i++) {
-    		 accounts[i] = new Account(1);
+    		 /* shared mutable state */ accounts[i] = new Account(1);
     	 }
     	 
     	 MultithreadedServer.runServer("hw09/data/rotate", accounts);
     	 
-    	 // assert correct account values
+    	 // assert nothing really weird happened with account values
     	 for (int i = A; i <= Z; i++) {
     		 Character c = new Character((char) (i+'A'));
     		 assertTrue("Account "+c+" has incorrect value " + accounts[i].getValue(), accounts[i].getValue() > 0);
@@ -76,17 +82,19 @@ public class MultithreadedServerTests extends TestCase {
     		 
      }
      
-     // test indirection
+     // Test case that includes indirection
      @Test
      public void testIndirection() throws IOException {
-    	 /// initialize accounts
-    	 accounts = new Account[numLetters];
+
+    	 // The array itself is never modified by each thread, even if items in it are
+    	 /* shared immutable state */ accounts = new Account[numLetters];
     	 for (int i = A; i <= Z; i++) {
-    		 accounts[i] = new Account(1);
+    		 /* shared mutable state */ accounts[i] = new Account(1);
     	 }
     	 
     	 MultithreadedServer.runServer("hw09/data/indirection", accounts);
     	 
+    	 // The result only has a few possible cases for each value
     	 assertTrue("Account A has incorrect value " + accounts[A].getValue(),
     			 accounts[A].getValue() == 0 ||
     			 accounts[A].getValue() == 4 ||
@@ -102,14 +110,14 @@ public class MultithreadedServerTests extends TestCase {
     			 accounts[A+5].getValue() == 4);
      }
      
-     // test decrementing
+     // Test case for decrementing
      @Test
      public void testDecrement() throws IOException {
 	
-		// initialize accounts 
-		accounts = new Account[numLetters];
+		// The array itself is never modified by each thread, even if items in it are
+		/* shared immutable state */ accounts = new Account[numLetters];
 		for (int i = A; i <= Z; i++) {
-			accounts[i] = new Account(Z-i);
+			/* shared mutable state */ accounts[i] = new Account(Z-i);
 		}			 
 		
 		MultithreadedServer.runServer("hw09/data/decrement", accounts);
@@ -122,26 +130,23 @@ public class MultithreadedServerTests extends TestCase {
 
      }
      
-     // test passing around a unit over a set of accounts
+     // Test passing around a unit over a set of accounts
      @Test
      public void testRotateInc() throws IOException {
 
-		accounts = new Account[numLetters];
+		// The array itself is never modified by each thread, even if items in it are
+		/* shared immutable state */ accounts = new Account[numLetters];
 
 		for (int i = A; i <= Z; i++) {
-			accounts[i] = new Account(100);
+			/* shared mutable state */ accounts[i] = new Account(100);
 		}			 
 		
 		MultithreadedServer.runServer("hw09/data/rotateInc", accounts);
 
-		dumpAccounts();
-		
+		// Assert that after rotating completely, every account has 100 in it
 		for (int i = A; i <= Z; i++) {
 			Character c = new Character((char) (i+'A'));
 			assertEquals("Account "+c+" differs",100,accounts[i].getValue());
 		}
-		
-    	 
      }
-	
 }
